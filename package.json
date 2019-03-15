@@ -6,6 +6,10 @@
     "author": "Kellen Green",
     "license": "ISC",
     "repository": "https://git.splunk.com/",
+    "scripts": {
+        "front": "node node_modules/http-server/bin/http-server src/ -p 8080 -c-1",
+        "back": "nodemon --watch src/server --watch src/common --experimental-modules src/server/main.mjs"
+    },
     "dependencies": {
         "@koa/cors": "^3.0.0",
         "http-server": "^0.11.1",
@@ -14,9 +18,5 @@
         "koa-jwt": "^3.5.1",
         "koa-router": "^7.4.0",
         "nodemon": "^1.18.10"
-    },
-    "scripts": {
-        "front": "node node_modules/http-server/bin/http-server src/ -p 8080 -c-1",
-        "back": "nodemon --watch src/server --watch src/common --experimental-modules src/server/main.mjs"
     }
 }

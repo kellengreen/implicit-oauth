@@ -13,7 +13,7 @@ async function main() {
     const userAction = document.getElementById('user-action')
     const userResult = document.getElementById('user-result')
 
-    userAction.addEventListener('click', auth.removeTokens)
+    userAction.addEventListener('click', auth.logout)
 
     if (auth.user) {
         userAction.innerText = 'Logout'
@@ -24,7 +24,7 @@ async function main() {
         userAction.href = auth.getLoginUrl()
     }
 
-    const apiButton = document.getElementById('api-action')
+    const apiButton = document.getElementById('api-action') 
     const apiResult = document.getElementById('api-result')
     
     apiButton.addEventListener('click', async () => {
@@ -33,7 +33,7 @@ async function main() {
         try {
             const response = await fetch(`http://localhost:${API_PORT}/api`, {
                 headers: {
-                    Authorization: `Bearer ${auth.getAccessToken()}`
+                    Authorization: `Bearer ${auth.accessToken}`
                 }
             })
             json = await response.json()

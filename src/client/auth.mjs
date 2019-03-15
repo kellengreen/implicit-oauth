@@ -13,13 +13,12 @@ export class Auth {
         this.scopes = scopes
         this.redirectUri = redirectUri
 
-        // In memory tokens since Storage is slow.
-        this._state = ''
-        this._accessToken = ''
-        this._accessTokenParsed = null
-        this._accessTokenExpiration = 0
-        this._idToken =  ''
-        this._stateToken = ''
+        this.state = ''
+        this.accessToken = ''
+        this.idToken = ''
+        this.user = null
+
+        this.setTokens()
 
         // Timeout ID's
         this.timeoutTokenExpired = 0
@@ -34,56 +33,14 @@ export class Auth {
         })
     }
 
-    /**
-     * Gets the current state from storage. Creates a new one if necessary.
-     * @returns {string}
-     */
-    getStateToken() {
-        let token = this._state
-        if (token === '') {
-            token = sessionStorage.getItem('ST') || ''
-            if (token === '') {
-                token = this.pRandStr()
-                sessionStorage.setItem('ST', token)
-            }
-        }
-        return token
-    }
-
-    /**
-     * Returns a access_token from one of many sources.
-     * @returns {string}
-     */
-    getAccessToken() {
-        this.setTokens()
-        return this._accessToken
-    }
-
-    /**
-     * Returns a parsed access_token from one of many sources.
-     * @returns {object|null}
-     */
-    getAccessTokenParsed() {
-        this.setTokens()
-        return this._accessTokenParsed
-    }
-
-    /**
-     * Returns the id_token from one of many sources.
-     * @returns {string}
-     */
-    getIdToken() {
-        this.setTokens()
-        return this._idToken
-    }
-    
      /**
       * 
       */
     logout() {
-        this._accessToken = ''
-        this._idToken =  ''
-        this._user = null
+        this.user = null
+        this.accessToken = ''
+        this.idToken =  ''
+        localStorage.removeItem('TOKENS')
     }
 
 
@@ -115,68 +72,67 @@ export class Auth {
 
     }
 
-    
-
     /**
-     * Set
+     * Sets tokens from various sources.
      * @returns {undefined}
      */
     setTokens() {
-        // Use in memory variables.
-        let accessToken = this._accessToken
-        let accessTokenParsed = this._accessTokenParsed
-        let idToken = this._idToken
 
-        if (accessToken !== '' || accessTokenParsed !== null || idToken !== '') {
+        // State Token
+        this.state = sessionStorage.getItem('STATE') || ''
+        if (this.state === '') {
+            this.state = this.pRandStr()
+            sessionStorage.setItem('STATE', this.state)
+        }
+
+        // Authentication tokens
+        let didSet = false
+        try {
+            didSet = this.setTokensFromUrl()
+        } catch(err) {
+            console.error(err)
+        }
+
+        if (didSet) {
             return
         }
 
-        // 
-            
-            try {
-                [accessToken, idToken] = this.getTokensFromUrl()
-            } catch(err) {
-                console.error(err)
-            }
-    
-            try {
-                accessTokenParsed = this.parseJwt(accessToken)
-            } catch(err) {
-                console.error(err)
-            }
-            
-            [accessToken, idToken] = this.getTokensFromStorage()
-            
-            this._accessToken = accessToken
-            this._accessTokenParsed = accessTokenParsed
-            this._idToken = idToken
+        try {
+            didSet = this.setTokensFromStorage()
+        } catch(err) {
+            console.error(err)
         }
+
     }
 
     /**
-     * Retrieves user tokens storage.
-     * @returns {string[]}
+     * Sets authentication tokens from storage.
+     * @returns {boolean}
      */
-    getTokensFromMemory() {
-        return [this._accessToken, this._idToken]
+    setTokensFromStorage() {
+        const [accessToken = '', idToken = ''] = (localStorage.getItem('TOKENS') || '').split(',', 2)
+
+        if (accessToken === '' || idToken === '') {
+            return false
+        } 
+
+        this.user = this.parseJwt(accessToken)
+        this.accessToken = accessToken
+        this.idToken = idToken
+
+        return true
     }
 
-
     /**
-     * Retrieves user tokens storage.
-     * @returns {string[]}
+     * Sets authentication tokens from the URL.
+     * @returns {boolean}
      */
-    getTokensFromStorage() {
-        return [localStorage.getItem('AT') || '', localStorage.getItem('IT') || '']
-    }
-
-    /**
-     * Parses tokens from the URL hash.
-     * @returns {string[]}
-     */
-    getTokensFromUrl() {
-
+    setTokensFromUrl() {
         const params = this.queryToObj(window.location.hash.substr(1))
+
+        if (Object.keys(params).length === 0) {
+            return false
+        }
 
         window.location.hash = ''
 
@@ -192,11 +148,24 @@ export class Auth {
             throw Error(`${errType}: ${decodeURIComponent(errMsg.replace(/\+/g, '%20'))}`)
         }
 
-        if (state !== this.getStateToken()) {
+        if (state !== this.state) {
             throw Error('State token mismatch while parsing URL hash.')
         }
 
-        return [accessToken, idToken]
+        if (accessToken === '') {
+            throw Error('Did not find access_token while parsing URL hash.')
+        }
+
+        if (idToken === '') {
+            throw Error('Did not find id_token while parsing URL hash.')
+        }
+
+        this.user = this.parseJwt(accessToken)
+        this.accessToken = accessToken
+        this.idToken = idToken
+        localStorage.setItem('TOKENS', `${accessToken},${idToken}`)
+        
+        return true
     }
 
     /**
@@ -232,7 +201,7 @@ export class Auth {
             response_type: 'token id_token',
             scope: this.scopes.join(' '),
             redirect_uri: this.redirectUri,
-            state: this.getStateToken(),
+            state: this.state,
             nonce: this.pRandStr(),
             prompt,
         }
